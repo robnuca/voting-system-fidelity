@@ -10,7 +10,7 @@ use Illuminate\Queue\InteractsWithQueue;
 use Illuminate\Queue\SerializesModels;
 use Illuminate\Support\Facades\Log;
 
-class StoreVote implements ShouldQueue
+class StoreVoteJob implements ShouldQueue
 {
     use Dispatchable, InteractsWithQueue, Queueable, SerializesModels;
 
@@ -37,6 +37,12 @@ class StoreVote implements ShouldQueue
      */
     public function handle()
     {
+        Log::info('StoreVoteJob@handle called', [
+            'user_id' => $this->userId,
+            'choice_id' => $this->choiceId,
+            'ip_address' => $this->ipAddress
+        ]);
+
         $vote = new Vote();
         $vote->user_id = $this->userId;
         $vote->choice_id = $this->choiceId;

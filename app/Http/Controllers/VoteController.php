@@ -6,8 +6,7 @@ use Illuminate\Http\Request;
 use App\Models\Vote;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Facades\Log;
-use Illuminate\Support\Facades\DB;
-use App\Jobs\StoreVote;
+use App\Jobs\StoreVoteJob;
 
 class VoteController extends Controller
 {
@@ -39,7 +38,7 @@ class VoteController extends Controller
         }
 
         // Queuing the vote to handle high traffic
-        StoreVote::dispatch($user->id, $request->input('choice_id'), $request->ip());
+        StoreVoteJob::dispatch($user->id, $request->input('choice_id'), $request->ip());
 
         Log::info('Vote queued successfully', ['user_id' => $user->id]);
 

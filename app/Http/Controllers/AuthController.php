@@ -17,13 +17,13 @@ class AuthController extends Controller
     {
         Log::info('Registering user', ['request' => $request->all()]);
 
-        try {
-            $request->validate([
-                'name' => 'required|string|max:255',
-                'email' => 'required|string|email|max:255|unique:users',
-                'password' => 'required|string|min:8|confirmed',
-            ]);
+        $request->validate([
+            'name' => 'required|string|max:255',
+            'email' => 'required|string|email|max:255|unique:users',
+            'password' => 'required|string|min:8|confirmed',
+        ]);
 
+        try {
             $user = User::create([
                 'name' => $request->name,
                 'email' => $request->email,
@@ -34,14 +34,38 @@ class AuthController extends Controller
 
             Log::info('User registered successfully', ['user_id' => $user->id]);
 
-            return response()->json(['token' => $user->createToken('API Token')->plainTextToken]);
-        } catch (ValidationException $e) {
-            Log::warning('Validation error', ['errors' => $e->errors()]);
-            return response()->json(['errors' => $e->errors()], 422);
+            return response()->json(['message' => 'Please verify your email address.']);
         } catch (\Exception $e) {
             Log::error('Error registering user', ['exception' => $e->getMessage()]);
+
             return response()->json(['message' => 'Internal Server Error'], 500);
         }
+    }
+
+    public function sendVerificationEmail(Request $request)
+    {
+        if ($request->user()->hasVerifiedEmail()) {
+            return response()->json(['message' => 'Email already verified.']);
+        }
+
+        $request->user()->sendEmailVerificationNotification();
+
+        return response()->json(['message' => 'Verification link sent.']);
+    }
+
+    public function verifyEmail(Request $request)
+    {
+        $user = User::findOrFail($request->route('id'));
+
+        if ($user->hasVerifiedEmail()) {
+            return response()->json(['message' => 'Email already verified.']);
+        }
+
+        if ($user->markEmailAsVerified()) {
+            event(new Verified($user));
+        }
+
+        return response()->json(['message' => 'Email successfully verified.']);
     }
 
     public function login(Request $request)
@@ -55,34 +79,18 @@ class AuthController extends Controller
 
         if (!Auth::attempt($request->only('email', 'password'))) {
             Log::warning('Invalid login attempt', ['email' => $request->email]);
+
             return response()->json(['message' => 'Invalid credentials'], 401);
         }
 
         $user = User::where('email', $request->email)->firstOrFail();
 
+        if (!$user->hasVerifiedEmail()) {
+            return response()->json(['message' => 'Email not verified'], 403);
+        }
+
         Log::info('User logged in successfully', ['user_id' => $user->id]);
 
         return response()->json(['token' => $user->createToken('API Token')->plainTextToken]);
-    }
-
-    public function sendVerificationEmail(Request $request)
-    {
-        $request->user()->sendEmailVerificationNotification();
-        return response()->json(['message' => 'Verification email sent']);
-    }
-
-    public function verifyEmail(Request $request)
-    {
-        $user = $request->user();
-
-        if ($user->hasVerifiedEmail()) {
-            return response()->json(['message' => 'Email already verified']);
-        }
-
-        if ($user->markEmailAsVerified()) {
-            event(new Verified($user));
-        }
-
-        return response()->json(['message' => 'Email verified successfully']);
     }
 }
